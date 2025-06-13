@@ -37,7 +37,7 @@ A smart Git commit message generator supporting multiple LLM providers with bili
 
 1. 克隆仓库 / Clone repository:
 ```bash
-git clone <repository-url>
+git clone git@github.com:QianJue-CN/AIGitCommit.git
 cd Python/AICommit
 ```
 
