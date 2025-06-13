@@ -38,7 +38,7 @@ A smart Git commit message generator supporting multiple LLM providers with bili
 1. 克隆仓库 / Clone repository:
 ```bash
 git clone git@github.com:QianJue-CN/AIGitCommit.git
-cd Python/AICommit
+cd /AICommit
 ```
 
 2. 安装依赖 / Install dependencies:
@@ -51,6 +51,10 @@ pip install -r requirements.txt
 1. 启动应用 / Start the application:
 ```bash
 streamlit run AIGitCommit.py
+```
+or
+```bash
+python run.py
 ```
 
 2. 配置设置 / Configure settings:
