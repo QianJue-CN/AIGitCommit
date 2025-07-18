@@ -65,7 +65,7 @@ def load_config() -> dict:
         "llm_provider": "openai",
         "model": DEFAULT_MODEL,
         "temperature": 0.2,
-        "max_tokens": 400
+        "max_tokens": 4000
     }
 
 
@@ -346,7 +346,7 @@ def main():
             # 高级设置
             with st.expander(i18n.t("advanced_settings")):
                 temperature = st.slider(i18n.t("temperature"), 0.0, 1.0, cfg.get("temperature", 0.2), 0.1)
-                max_tokens = st.number_input(i18n.t("max_tokens"), 100, 4000, cfg.get("max_tokens", 400))
+                max_tokens = st.number_input(i18n.t("max_tokens"), 100, 65535, cfg.get("max_tokens", 4000))
                 system_prompt = st.text_area(
                     i18n.t("system_prompt"),
                     cfg.get("system_prompt", i18n.t("default_system_prompt")),

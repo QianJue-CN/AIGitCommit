@@ -25,6 +25,8 @@ def test_provider_creation():
                 provider = create_llm_provider(provider_type, "", "http://localhost:11434")
             elif provider_type == "custom":
                 provider = create_llm_provider(provider_type, "test-key", "http://localhost:8080", model="test-model")
+            elif provider_type == "gemini":
+                provider = create_llm_provider(provider_type, "test-key")
             else:
                 provider = create_llm_provider(provider_type, "test-key")
             

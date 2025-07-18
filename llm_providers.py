@@ -56,7 +56,7 @@ class OpenAIProvider(LLMProvider):
     def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> str:
         model = kwargs.get('model', self.get_default_model())
         temperature = kwargs.get('temperature', 0.2)
-        max_tokens = kwargs.get('max_tokens', 400)
+        max_tokens = kwargs.get('max_tokens', 4000)
         
         backoff = 1
         for _ in range(3):
@@ -109,7 +109,7 @@ class ClaudeProvider(LLMProvider):
     def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> str:
         model = kwargs.get('model', self.get_default_model())
         temperature = kwargs.get('temperature', 0.2)
-        max_tokens = kwargs.get('max_tokens', 400)
+        max_tokens = kwargs.get('max_tokens', 4000)
         
         # 转换消息格式
         system_message = ""
@@ -193,6 +193,170 @@ class LocalProvider(LLMProvider):
             # 如果API调用失败，返回常见模型列表
             return ["llama2", "llama3", "codellama", "mistral", "qwen"]
 
+class GeminiProvider(LLMProvider):
+    """Google Gemini提供商"""
+
+    def __init__(self, api_key: str, base_url: Optional[str] = None, **kwargs):
+        super().__init__(api_key, base_url, **kwargs)
+        self.use_custom_endpoint = base_url is not None
+
+        if self.use_custom_endpoint:
+            # 使用自定义端点（OpenAI兼容API）
+            self.base_url = base_url.rstrip('/')
+        else:
+            # 使用Google官方API
+            try:
+                import google.generativeai as genai
+                self.genai = genai
+                genai.configure(api_key=api_key)
+            except ImportError:
+                raise ImportError("Google Generative AI library not installed. Run: pip install google-generativeai")
+
+    def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        model_name = kwargs.get('model', self.get_default_model())
+        temperature = kwargs.get('temperature', 0.2)
+        max_tokens = kwargs.get('max_tokens', 4000)
+
+        if self.use_custom_endpoint:
+            # 使用自定义端点（OpenAI兼容API）
+            return self._chat_completion_custom(messages, model_name, temperature, max_tokens)
+        else:
+            # 使用Google官方API
+            return self._chat_completion_official(messages, model_name, temperature, max_tokens)
+
+    def _chat_completion_custom(self, messages: List[Dict[str, str]], model_name: str, temperature: float, max_tokens: int) -> str:
+        """使用自定义端点的聊天完成"""
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            raise RuntimeError(f"Gemini Custom API error: {str(e)}")
+
+    def _chat_completion_official(self, messages: List[Dict[str, str]], model_name: str, temperature: float, max_tokens: int) -> str:
+        """使用Google官方API的聊天完成"""
+        # 转换消息格式为Gemini格式
+        system_message = ""
+        conversation_history = []
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_message = msg["content"]
+            elif msg["role"] == "user":
+                conversation_history.append({
+                    "role": "user",
+                    "parts": [msg["content"]]
+                })
+            elif msg["role"] == "assistant":
+                conversation_history.append({
+                    "role": "model",
+                    "parts": [msg["content"]]
+                })
+
+        try:
+            # 创建模型实例
+            model = self.genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_message if system_message else None
+            )
+
+            # 配置生成参数
+            generation_config = self.genai.types.GenerationConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+
+            # 如果有对话历史，使用chat模式
+            if len(conversation_history) > 1:
+                chat = model.start_chat(history=conversation_history[:-1])
+                response = chat.send_message(
+                    conversation_history[-1]["parts"][0],
+                    generation_config=generation_config
+                )
+            else:
+                # 单次对话
+                prompt = conversation_history[0]["parts"][0] if conversation_history else ""
+                if system_message:
+                    prompt = f"{system_message}\n\n{prompt}"
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config
+                )
+
+            return response.text.strip()
+        except Exception as e:
+            raise RuntimeError(f"Gemini Official API error: {str(e)}")
+
+    def get_default_model(self) -> str:
+        return "gemini-1.5-flash"
+
+    def get_available_models(self) -> List[str]:
+        """获取Gemini可用模型列表"""
+        if self.use_custom_endpoint:
+            # 使用自定义端点获取模型列表
+            return self._get_models_custom()
+        else:
+            # 使用Google官方API获取模型列表
+            return self._get_models_official()
+
+    def _get_models_custom(self) -> List[str]:
+        """从自定义端点获取模型列表"""
+        try:
+            url = f"{self.base_url}/v1/models"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            result = response.json()
+            models = [model["id"] for model in result.get("data", [])]
+            # 过滤出Gemini相关模型
+            gemini_models = [m for m in models if "gemini" in m.lower()]
+            return sorted(gemini_models) if gemini_models else models
+        except Exception:
+            # 如果API调用失败，返回已知模型
+            return [
+                "gemini-1.5-pro",
+                "gemini-1.5-flash",
+                "gemini-1.0-pro",
+                "gemini-pro",
+                "gemini-pro-vision"
+            ]
+
+    def _get_models_official(self) -> List[str]:
+        """从Google官方API获取模型列表"""
+        try:
+            models_response = self.genai.list_models()
+            models = []
+            for model in models_response:
+                # 只包含生成模型
+                if 'generateContent' in model.supported_generation_methods:
+                    models.append(model.name.replace('models/', ''))
+            return sorted(models)
+        except Exception:
+            # 如果API调用失败，返回已知模型
+            return [
+                "gemini-1.5-pro",
+                "gemini-1.5-flash",
+                "gemini-1.0-pro",
+                "gemini-pro",
+                "gemini-pro-vision"
+            ]
+
 class CustomProvider(LLMProvider):
     """自定义提供商"""
     
@@ -203,7 +367,7 @@ class CustomProvider(LLMProvider):
     def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> str:
         model = kwargs.get('model', self.model)
         temperature = kwargs.get('temperature', 0.2)
-        max_tokens = kwargs.get('max_tokens', 400)
+        max_tokens = kwargs.get('max_tokens', 4000)
         
         # 通用OpenAI兼容格式
         url = f"{self.base_url.rstrip('/')}/chat/completions"
@@ -252,6 +416,7 @@ def create_llm_provider(provider_type: str, api_key: str, base_url: Optional[str
     providers = {
         "openai": OpenAIProvider,
         "claude": ClaudeProvider,
+        "gemini": GeminiProvider,
         "local": LocalProvider,
         "custom": CustomProvider
     }
@@ -280,6 +445,11 @@ PROVIDER_CONFIGS = {
     "claude": {
         "models": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
         "default_base_url": "https://api.anthropic.com",
+        "requires_api_key": True
+    },
+    "gemini": {
+        "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro", "gemini-pro-vision"],
+        "default_base_url": "https://generativelanguage.googleapis.com",
         "requires_api_key": True
     },
     "local": {

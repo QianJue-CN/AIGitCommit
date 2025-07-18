@@ -13,6 +13,7 @@ A smart Git commit message generator supporting multiple LLM providers with bili
 ### 🤖 多LLM提供商支持 / Multi-LLM Provider Support
 - **OpenAI**: GPT-4, GPT-4o, GPT-3.5-turbo等
 - **Claude**: Claude-3 系列模型
+- **Gemini**: Gemini-1.5-pro, Gemini-1.5-flash, Gemini-1.0-pro, Gemini-pro, Gemini-pro-vision等
 - **本地模型**: 支持Ollama等本地部署模型
 - **自定义API**: 支持任何OpenAI兼容的API
 
@@ -82,6 +83,11 @@ python run.py
 - 需要API密钥
 - 默认端点: https://api.anthropic.com
 
+### Google Gemini
+- 模型: gemini-1.5-pro, gemini-1.5-flash, gemini-1.0-pro, gemini-pro, gemini-pro-vision
+- 需要API密钥
+- 默认端点: https://generativelanguage.googleapis.com
+
 ### 本地模型 (Ollama)
 - 支持任何Ollama部署的模型
 - 无需API密钥
@@ -103,6 +109,7 @@ Configuration is saved in `~/.ai_commit_helper_config.json`
 - GitPython: Git操作
 - openai: OpenAI API客户端
 - anthropic: Claude API客户端
+- google-generativeai: Google Gemini API客户端
 - tiktoken: 令牌计算
 - requests: HTTP请求
 
